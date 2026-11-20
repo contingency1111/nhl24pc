@@ -1679,6 +1679,12 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
             return ORBIS_HTTP_ERROR_INVALID_ID;
         }
         auto& req = *it->second;
+        if (req.settings.nonblock && req.state == HttpRequestState::Sending) {
+            return ORBIS_HTTP_ERROR_EAGAIN;
+        }
+        if (req.settings.nonblock && req.state == HttpRequestState::Sent) {
+            return req.last_errno;
+        }
         if (req.state == HttpRequestState::Sending || req.state == HttpRequestState::Sent) {
             LOG_ERROR(Lib_Http, "Request already sent (reqId={})", reqId);
             return ORBIS_HTTP_ERROR_AFTER_SEND;
@@ -1745,6 +1751,7 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
         }
     }
 
+    const bool nonblock = plan.settings.nonblock;
     const bool online = EmulatorSettings.IsConnectedToNetwork();
     LOG_INFO(Lib_Http, "reqId={} dispatched to async worker [{} {} {}://{}:{}{}]", reqId,
              online ? "ONLINE" : "OFFLINE", HttpMethodName(plan.method), plan.scheme, plan.host,
@@ -1811,7 +1818,7 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
         }
     }).detach();
 
-    return ORBIS_OK;
+    return nonblock ? ORBIS_HTTP_ERROR_EAGAIN : ORBIS_OK;
 }
 
 int PS4_SYSV_ABI sceHttpSetAuthEnabled(int id, int isEnable) {
