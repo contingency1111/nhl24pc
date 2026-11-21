@@ -881,8 +881,9 @@ static s32 RunRealHttpRequest(const SendRequestPlan& plan_in, HttpResponse& out_
         for (const auto& [k, v] : plan.headers) {
             headers.emplace(k, v);
         }
-        if (plan.settings.accept_encoding_gzip && !game_set_accept_encoding) {
-            headers.emplace("Accept-Encoding", "gzip");
+        if (!game_set_accept_encoding) {
+            headers.emplace("Accept-Encoding",
+                            plan.settings.accept_encoding_gzip ? "gzip" : "identity");
         }
 
         const char* body_ptr =
