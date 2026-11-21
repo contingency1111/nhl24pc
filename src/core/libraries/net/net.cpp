@@ -650,7 +650,15 @@ s32 PS4_SYSV_ABI sceNetBind(OrbisNetId s, const OrbisNetSockaddr* addr, u32 addr
     }
     u16 port = 0;
     if (host.ss_family == AF_INET) {
-        port = ntohs(reinterpret_cast<const sockaddr_in*>(&host)->sin_port);
+        auto* host4 = reinterpret_cast<sockaddr_in*>(&host);
+        port = ntohs(host4->sin_port);
+        // A console has one interface, so games bind to the address sceNetCtl reported. A PC
+        // can have several; pinning the socket to one stops it reaching loopback or the other
+        // interfaces the host would route through, so bind to all of them instead.
+        const u32 bound = ntohl(host4->sin_addr.s_addr);
+        if (bound != INADDR_ANY && (bound >> 24) != 127 && (bound >> 28) != 0xE) {
+            host4->sin_addr.s_addr = htonl(INADDR_ANY);
+        }
     } else if (host.ss_family == AF_INET6) {
         port = ntohs(reinterpret_cast<const sockaddr_in6*>(&host)->sin6_port);
     }
