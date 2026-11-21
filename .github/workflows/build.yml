@@ -66,11 +66,20 @@ jobs:
         if ((ClangMajor "$bin\clang-cl.exe") -lt 22) { throw "No Clang 22+ available" }
         $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+    - name: Patch openal-soft for the VS 2026 STL
+      shell: pwsh
+      run: |
+        Get-ChildItem externals\openal-soft -Recurse -Include *.cpp,*.h | ForEach-Object {
+          $text = [IO.File]::ReadAllText($_.FullName)
+          $patched = [regex]::Replace($text, 'std::views::transform\(&[\w:]+::operator\*\)', 'std::views::transform([](auto &ptr) -> decltype(auto) { return *ptr; })')
+          if ($patched -ne $text) { [IO.File]::WriteAllText($_.FullName, $patched); Write-Host "patched $($_.FullName)" }
+        }
+
     - name: Configure CMake
       run: cmake --fresh -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE=ON -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build nhl24.exe
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --parallel $env:NUMBER_OF_PROCESSORS
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --parallel $env:NUMBER_OF_PROCESSORS -- -k 0
 
     - name: Build launcher.exe
       run: powershell -NoProfile -ExecutionPolicy Bypass -File launcher\build_launcher.ps1 -Out ${{github.workspace}}\build
